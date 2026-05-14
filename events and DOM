@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Практична 6 - Варіант 1</title>
+    <style>
+        :root {
+            --primary: #4CAF50;
+            --error: #f44336;
+            --bg: #f9f9f9;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0; padding: 20px;
+            display: flex; gap: 30px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            background: #fff;
+            padding: 20px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            width: 100%; max-width: 400px;
+        }
+        h2 { margin-top: 0; }
+        
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 15px;
+            position: relative;
+        }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea {
+            width: 100%; padding: 10px;
+            border: 2px solid #ccc; border-radius: 4px;
+            box-sizing: border-box; transition: border-color 0.3s;
+        }
+        .form-group.valid input, .form-group.valid textarea { border-color: var(--primary); }
+        .form-group.invalid input, .form-group.invalid textarea { border-color: var(--error); }
+        
+        .error-text {
+            color: var(--error); font-size: 12px;
+            margin-top: 5px; display: none;
+        }
+        
+        /* Progress bar */
+        .progress-container {
+            width: 100%; height: 8px;
+            background: #eee; border-radius: 4px;
+            margin-bottom: 15px; overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%; width: 0%;
+            background: var(--primary);
+            transition: width 0.3s ease;
+        }
+        
+        button {
+            width: 100%; padding: 10px;
+            background: #007BFF; color: white;
+            border: none; border-radius: 4px;
+            cursor: pointer; font-size: 16px;
+        }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        
+        /* Search Styles */
+        .search-results {
+            list-style: none; padding: 0;
+            max-height: 400px; overflow-y: auto;
+            border: 1px solid #ddd; border-radius: 4px;
+        }
+        .search-results li {
+            padding: 10px; border-bottom: 1px solid #eee;
+        }
+        .search-results li:last-child { border-bottom: none; }
+        mark { background-color: #ffeb3b; color: #000; padding: 0 2px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Контактна форма</h2>
+        <div class="progress-container">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <form id="contactForm">
+            <div class="form-group">
+                <label for="name">Ім'я</label>
+                <input type="text" id="name" name="name" placeholder="Введіть ім'я">
+                <div class="error-text">Ім'я повинно містити мінімум 2 символи.</div>
+            </div>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" placeholder="example@mail.com">
+                <div class="error-text">Введіть коректний email.</div>
+            </div>
+            <div class="form-group">
+                <label for="phone">Телефон</label>
+                <input type="text" id="phone" name="phone" placeholder="+380...">
+                <div class="error-text">Формат: +380XXXXXXXXX (12 цифр).</div>
+            </div>
+            <div class="form-group">
+                <label for="message">Повідомлення</label>
+                <textarea id="message" name="message" rows="4" placeholder="Ваше повідомлення (20-500 символів)"></textarea>
+                <div class="error-text">Повідомлення має бути від 20 до 500 символів.</div>
+            </div>
+            <button type="submit" id="submitBtn" disabled>Відправити</button>
+        </form>
+    </div>
+
+    <div class="container">
+        <h2>Пошук студентів</h2>
+        <input type="text" id="searchInput" placeholder="Введіть ім'я для пошуку...">
+        <ul class="search-results" id="resultsList">
+            </ul>
+    </div>
+
+    <script>
+        // Утиліта для debounce (затримки виклику)
+        function debounce(func, delay) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), delay);
+            };
+        }
+
+        // --- ЛОГІКА ФОРМИ З EVENT DELEGATION ---
+        const form = document.getElementById('contactForm');
+        const progressBar = document.getElementById('progressBar');
+        const submitBtn = document.getElementById('submitBtn');
+
+        const formState = { name: false, email: false, phone: false, message: false };
+
+        // Правила валідації
+        const validators = {
+            name: (val) => val.trim().length >= 2,
+            email: (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
+            phone: (val) => /^\+380\d{9}$/.test(val.replace(/\s/g, '')),
+            message: (val) => val.trim().length >= 20 && val.trim().length <= 500
+        };
+
+        const validateField = debounce((e) => {
+            const target = e.target;
+            if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') return;
+
+            const fieldName = target.name;
+            const isValid = validators[fieldName](target.value);
+            formState[fieldName] = isValid;
+
+            const formGroup = target.closest('.form-group');
+            if (isValid) {
+                formGroup.classList.remove('invalid');
+                formGroup.classList.add('valid');
+                formGroup.querySelector('.error-text').style.display = 'none';
+            } else {
+                formGroup.classList.remove('valid');
+                formGroup.classList.add('invalid');
+                formGroup.querySelector('.error-text').style.display = 'block';
+            }
+
+            updateProgress();
+        }, 300);
+
+        function updateProgress() {
+            const validCount = Object.values(formState).filter(status => status).length;
+            const progress = (validCount / Object.keys(formState).length) * 100;
+            progressBar.style.width = progress + '%';
+            submitBtn.disabled = validCount !== Object.keys(formState).length;
+        }
+
+        // Використовуємо Event Delegation на рівні форми (input подія спливає)
+        form.addEventListener('input', validateField);
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            alert('Форма успішно відправлена!');
+            form.reset();
+            Object.keys(formState).forEach(key => formState[key] = false);
+            document.querySelectorAll('.form-group').forEach(group => {
+                group.classList.remove('valid', 'invalid');
+            });
+            updateProgress();
+        });
+
+
+        // --- ЛОГІКА ПОШУКУ ---
+        const students = [
+            "Олександр Іваненко", "Марія Петренко", "Іван Сидоренко", "Олена Коваленко", "Микола Ткаченко",
+            "Анна Шевченко", "Дмитро Бондаренко", "Вікторія Морозова", "Сергій Бойко", "Юлія Кравченко",
+            "Андрій Лисенко", "Наталія Мельник", "Максим Поліщук", "Катерина Марченко", "Володимир Козак",
+            "Оксана Павленко", "Тарас Савченко", "Тетяна Гаврилюк", "Євген Руденко", "Ірина Харченко",
+            "Богдан Кушнір", "Світлана Литвин", "Олег Дем'яненко", "Дарина Романенко", "Роман Гриценко",
+            "Анастасія Власенко", "Віталій Нестеренко", "Аліна Карпенко", "Артем Степаненко", "Марина Клименко",
+            "Ігор Василенко", "Софія Гончаренко"
+        ];
+
+        const searchInput = document.getElementById('searchInput');
+        const resultsList = document.getElementById('resultsList');
+
+        function renderList(items, highlightQuery = '') {
+            resultsList.innerHTML = '';
+            if (items.length === 0) {
+                resultsList.innerHTML = '<li>Не знайдено</li>';
+                return;
+            }
+            
+            items.forEach(item => {
+                const li = document.createElement('li');
+                if (highlightQuery) {
+                    // Підсвічуємо знайдений текст
+                    const regex = new RegExp(`(${highlightQuery})`, 'gi');
+                    li.innerHTML = item.replace(regex, '<mark>$1</mark>');
+                } else {
+                    li.textContent = item;
+                }
+                resultsList.appendChild(li);
+            });
+        }
+
+        const handleSearch = debounce((e) => {
+            const query = e.target.value.trim().toLowerCase();
+            if (!query) {
+                renderList(students);
+                return;
+            }
+            
+            const filtered = students.filter(student => 
+                student.toLowerCase().includes(query)
+            );
+            renderList(filtered, query);
+        }, 300);
+
+        searchInput.addEventListener('input', handleSearch);
+
+        // Початковий рендер списку
+        renderList(students);
+    </script>
+</body>
+</html>
